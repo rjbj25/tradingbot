@@ -3,7 +3,7 @@ from app.core.config import settings
 import pandas as pd
 
 class GeminiAgent:
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str = None, model_name: str = "gemini-2.5-flash"):
         key = api_key or settings.GEMINI_API_KEY
         if not key:
             print("Warning: GEMINI_API_KEY not found.")
@@ -11,7 +11,18 @@ class GeminiAgent:
             genai.configure(api_key=key)
             
         # Using available model from list_models.py
-        self.model = genai.GenerativeModel('gemini-2.5-flash')
+        self.model = genai.GenerativeModel(model_name)
+
+    def list_available_models(self):
+        """List available Gemini models"""
+        try:
+            # Check if configured (simple check: try to list models)
+            models = genai.list_models()
+            return [m.name.replace('models/', '') for m in models if 'generateContent' in m.supported_generation_methods]
+        except Exception as e:
+            print(f"Error listing models (likely API key missing/invalid): {e}")
+            # Return default models if API call fails
+            return ["gemini-2.5-flash", "gemini-pro", "gemini-1.5-pro", "gemini-1.5-flash"]
 
     def _get_timeframe_instructions(self, tf: str) -> str:
         """

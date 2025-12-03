@@ -9,7 +9,8 @@ class BinanceAgent:
             'secret': secret_key or settings.BINANCE_SECRET_KEY,
             'options': {
                 'defaultType': market_type,
-            }
+            },
+            'timeout': 10000, # 10 seconds timeout
         })
         if settings.BINANCE_TESTNET:
             self.exchange.set_sandbox_mode(True)
@@ -29,7 +30,7 @@ class BinanceAgent:
             return df
         except Exception as e:
             print(f"Error fetching OHLCV: {e}")
-            return None
+            raise e
 
     async def get_balance(self):
         """

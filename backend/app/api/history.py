@@ -87,11 +87,16 @@ def get_stats(db: Session = Depends(get_db)):
     win_rate_pct = (wins / closed_trades) * 100 if closed_trades > 0 else 0.0
     
     # Calculate Allocation Stats
-    config = db.query(Configuration).order_by(Configuration.id.desc()).first()
-    max_pos = config.max_open_positions if config else 1
-    inv_amount = config.investment_amount if config else 100.0
+    configs = db.query(Configuration).all()
+    config_map = {c.config_key: c.config_value for c in configs}
+    
+    max_pos = int(config_map.get('max_open_positions', 1))
+    inv_amount = float(config_map.get('investment_amount', 100.0))
     
     total_allocation = float(max_pos) * float(inv_amount)
+    
+    # Pending Allocation: Target (Total) - Current Invested
+    # User requested: "suma del valor de las posiciones menos el valor total" (interpreted as Remaining Allocation)
     pending_allocation = total_allocation - total_invested
     
     return {

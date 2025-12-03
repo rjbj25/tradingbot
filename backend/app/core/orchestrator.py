@@ -157,7 +157,8 @@ class TradingOrchestrator:
                                investment_amount: float, leverage: int,
                                binance_api_key: str = None, binance_secret_key: str = None, 
                                gemini_api_key: str = None, paper_trading: bool = False,
-                               max_open_positions: int = 1, strategy: str = "IA Driven"):
+                               max_open_positions: int = 1, strategy: str = "IA Driven",
+                               model: str = "gemini-2.5-flash"):
         self.is_running = True
         self.symbol = symbol
         self.market_type = market_type
@@ -171,7 +172,9 @@ class TradingOrchestrator:
             "investment": investment_amount,
             "leverage": leverage,
             "paper_trading": paper_trading,
-            "max_open_positions": max_open_positions
+            "max_open_positions": max_open_positions,
+            "strategy": strategy,
+            "model": model
         })
         
         # Debug: Check keys (masked)
@@ -183,7 +186,7 @@ class TradingOrchestrator:
         try:
             self.binance = BinanceAgent(api_key=binance_api_key, secret_key=binance_secret_key, market_type=market_type)
             await self.binance.load_markets()
-            self.gemini = GeminiAgent(api_key=gemini_api_key)
+            self.gemini = GeminiAgent(api_key=gemini_api_key, model_name=model)
             self.log("INFO", "Agents initialized successfully")
         except Exception as e:
             self.log("ERROR", f"Failed to initialize agents: {str(e)}")
