@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ActivityLog from './ActivityLog';
+import LiveChart from './LiveChart';
 
 export default function Dashboard() {
     const [status, setStatus] = useState('stopped');
@@ -351,9 +352,13 @@ export default function Dashboard() {
                         </div>
                     </div>
 
-                    {/* Stats Placeholder */}
+                    {/* Stats & Chart */}
                     <div className="space-y-4">
                         <h3 className="text-lg font-medium text-gray-300">Live Status</h3>
+
+                        {/* Chart */}
+                        <LiveChart symbol={symbol} timeframe={timeframe} />
+
                         <div className="bg-gray-700/50 rounded-lg p-4 space-y-3">
                             <div>
                                 <p className="text-gray-400 text-xs uppercase tracking-wider">Active Configuration</p>

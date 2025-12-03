@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from app.core.orchestrator import TradingOrchestrator
+from app.agents.binance_agent import BinanceAgent
 from app.core.database import get_db
 from app.models.database import Configuration, SystemLog, Trade, GeminiDecision
 
@@ -151,3 +152,30 @@ async def reset_data(db: Session = Depends(get_db)):
 @router.get("/status")
 async def get_status():
     return {"running": orchestrator.is_running}
+
+@router.get("/market/candles")
+async def get_candles(symbol: str, timeframe: str = "1h", limit: int = 100):
+    agent = orchestrator.binance
+    should_close = False
+    
+    if not agent:
+        # Create temporary agent for public data if bot is not running
+        agent = BinanceAgent()
+        await agent.load_markets()
+        should_close = True
+    
+    try:
+        df = await agent.fetch_ohlcv(symbol, timeframe, limit)
+        if df is not None:
+            # Convert timestamp to int (ms) for frontend if needed, or keep as string
+            # Recharts usually likes unix timestamp numbers or ISO strings
+            # df['timestamp'] is datetime, let's convert to ms timestamp
+            result = df.to_dict(orient='records')
+            for row in result:
+                if hasattr(row['timestamp'], 'timestamp'):
+                    row['timestamp'] = int(row['timestamp'].timestamp() * 1000)
+            return result
+        return []
+    finally:
+        if should_close:
+            await agent.close()
