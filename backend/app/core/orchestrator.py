@@ -193,15 +193,39 @@ class TradingOrchestrator:
         try:
             while self.is_running:
                 try:
-                    # 1. Fetch Data
+                    # 1. Fetch Data (Multi-Timeframe)
                     self.log("INFO", "Fetching market data...")
-                    ohlcv = await self.binance.fetch_ohlcv(symbol, timeframe=timeframe)
-                    if ohlcv is None:
-                        self.log("WARNING", "Failed to fetch data. Retrying in 10s...")
+                    
+                    # Define timeframe hierarchy
+                    tf_map = {
+                        '1m': ['5m', '15m'],
+                        '5m': ['15m', '1h'],
+                        '15m': ['1h', '4h'],
+                        '1h': ['4h', '1d'],
+                        '4h': ['1d', '1w'],
+                        '1d': ['1w', '1M']
+                    }
+                    
+                    higher_tfs = tf_map.get(timeframe, [])
+                    data_dict = {}
+                    
+                    # Fetch Base Timeframe
+                    base_ohlcv = await self.binance.fetch_ohlcv(symbol, timeframe=timeframe)
+                    if base_ohlcv is None:
+                        self.log("WARNING", "Failed to fetch base data. Retrying in 10s...")
                         await asyncio.sleep(10)
                         continue
-
-                    current_price = ohlcv.iloc[-1]['close']
+                    data_dict[timeframe] = base_ohlcv
+                    current_price = base_ohlcv.iloc[-1]['close']
+                    
+                    # Fetch Higher Timeframes
+                    for tf in higher_tfs:
+                        try:
+                            df = await self.binance.fetch_ohlcv(symbol, timeframe=tf)
+                            if df is not None:
+                                data_dict[tf] = df
+                        except Exception as e:
+                            self.log("WARNING", f"Failed to fetch {tf} data: {e}")
 
                     # 2. Check Open Positions & Manage SL/TP
                     open_trades_count = await self.manage_open_positions(symbol, current_price, paper_trading)
@@ -210,10 +234,11 @@ class TradingOrchestrator:
                         self.log("INFO", f"Max positions reached ({open_trades_count}/{self.max_open_positions}). Skipping new analysis.")
                         await asyncio.sleep(60)
                         continue
-
+                        
                     # 3. Analyze with Gemini (Only if slots available)
                     self.log("INFO", f"Analyzing market with Gemini (Open: {open_trades_count}/{self.max_open_positions})...")
-                    analysis_json = await self.gemini.analyze_market(symbol, ohlcv)
+                    # Pass the entire data_dict to analyze_market
+                    analysis_json = await self.gemini.analyze_market(symbol, data_dict, timeframe)
                     
                     if analysis_json:
                         # Clean json string if needed (Gemini might add markdown)
@@ -233,7 +258,7 @@ class TradingOrchestrator:
                                     stop_loss=decision.get('stop_loss'),
                                     take_profit=decision.get('take_profit'),
                                     reasoning=decision.get('reasoning'),
-                                    market_data=ohlcv.tail(20).to_json(),
+                                    market_data=data_dict[timeframe].tail(20).to_json(), # Save base TF data for reference
                                     executed=False
                                 )
                                 db.add(gemini_decision)
