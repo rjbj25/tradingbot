@@ -13,6 +13,35 @@ class GeminiAgent:
         # Using available model from list_models.py
         self.model = genai.GenerativeModel('gemini-2.5-flash')
 
+    def _get_timeframe_instructions(self, tf: str) -> str:
+        """
+        Returns specific instructions based on the timeframe volatility.
+        """
+        # Normalize timeframe string
+        tf = tf.lower()
+        
+        # Low Timeframes (Scalping/Intraday)
+        if tf in ['1m', '3m', '5m', '15m']:
+            return """
+            *** AJUSTE DE VOLATILIDAD (BAJA TEMPORALIDAD) ***
+            - Estás analizando una temporalidad RÁPIDA ({tf}). La volatilidad es ALTA y el RUIDO es frecuente.
+            - PRIORIDAD: Preservación de capital sobre ganancias.
+            - Stop Loss: DEBE ser ajustado y técnico (ej. último swing high/low reciente).
+            - Confirmación: Exige cierre de vela para validar rupturas. Cuidado con los "fakeouts".
+            - Si la señal no es PERFECTA, la decisión debe ser HOLD.
+            """
+        
+        # Mid/High Timeframes (Swing/Position)
+        elif tf in ['1h', '4h', '1d', '1w']:
+            return """
+            *** ENFOQUE ESTRUCTURAL (MEDIA/ALTA TEMPORALIDAD) ***
+            - Estás analizando una temporalidad LENTA ({tf}). La tendencia tiene mayor peso.
+            - Stop Loss: Puede ser más holgado para dar "aire" al precio.
+            - Enfócate en niveles clave de Soporte/Resistencia mayores.
+            """
+            
+        return ""
+
     async def analyze_market(self, symbol: str, data_dict: dict, base_tf: str, strategy: str = "IA Driven"):
         """
         Analyze market data using Gemini with Multi-Timeframe context and specific Strategy.
@@ -51,6 +80,8 @@ class GeminiAgent:
         Contexto Multi-Timeframe:
         1. Identificar la TENDENCIA MACRO usando las temporalidades mayores.
         2. Buscar patrones de entrada precisos en la temporalidad base ({base_tf}).
+        
+        {self._get_timeframe_instructions(base_tf)}
         
         Datos de Mercado:
         {data_str}
