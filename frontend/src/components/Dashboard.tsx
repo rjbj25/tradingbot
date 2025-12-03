@@ -8,6 +8,9 @@ export default function Dashboard() {
     const [timeframe, setTimeframe] = useState('1h');
     const [investmentAmount, setInvestmentAmount] = useState('100');
     const [leverage, setLeverage] = useState('1');
+    const [maxOpenPositions, setMaxOpenPositions] = useState('1');
+
+    const [paperTrading, setPaperTrading] = useState(true); // Default to true for safety
 
     // Credentials State
     const [binanceApiKey, setBinanceApiKey] = useState('');
@@ -19,9 +22,25 @@ export default function Dashboard() {
 
     useEffect(() => {
         loadConfig();
-        const interval = setInterval(fetchDecision, 5000);
+        checkStatus();
+        const interval = setInterval(() => {
+            fetchDecision();
+            checkStatus();
+        }, 5000);
         return () => clearInterval(interval);
     }, []);
+
+    const checkStatus = async () => {
+        try {
+            const res = await fetch('/api/status');
+            if (res.ok) {
+                const data = await res.json();
+                setStatus(data.running ? 'running' : 'stopped');
+            }
+        } catch (err) {
+            console.error('Failed to check status:', err);
+        }
+    };
 
     const fetchDecision = async () => {
         try {
@@ -47,9 +66,11 @@ export default function Dashboard() {
                 if (config.timeframe) setTimeframe(config.timeframe);
                 if (config.investment_amount) setInvestmentAmount(config.investment_amount);
                 if (config.leverage) setLeverage(config.leverage);
+                if (config.max_open_positions) setMaxOpenPositions(config.max_open_positions);
                 if (config.binance_api_key) setBinanceApiKey(config.binance_api_key);
                 if (config.binance_secret_key) setBinanceSecretKey(config.binance_secret_key);
                 if (config.gemini_api_key) setGeminiApiKey(config.gemini_api_key);
+                // Note: paper_trading might not be in config yet, but good to have
             }
         } catch (err) {
             console.error('Failed to load config:', err);
@@ -67,9 +88,11 @@ export default function Dashboard() {
                     timeframe,
                     investment_amount: parseFloat(investmentAmount),
                     leverage: parseInt(leverage),
+                    max_open_positions: parseInt(maxOpenPositions),
                     binance_api_key: binanceApiKey,
                     binance_secret_key: binanceSecretKey,
-                    gemini_api_key: geminiApiKey
+                    gemini_api_key: geminiApiKey,
+                    paper_trading: paperTrading
                 })
             });
             alert('Configuration saved!');
@@ -90,15 +113,30 @@ export default function Dashboard() {
                     timeframe,
                     investment_amount: parseFloat(investmentAmount),
                     leverage: parseInt(leverage),
+                    max_open_positions: parseInt(maxOpenPositions),
                     binance_api_key: binanceApiKey,
                     binance_secret_key: binanceSecretKey,
-                    gemini_api_key: geminiApiKey
+                    gemini_api_key: geminiApiKey,
+                    paper_trading: paperTrading
                 })
             });
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({}));
+                alert(`Failed to start: ${errorData.detail || res.statusText}`);
+                return;
+            }
             const data = await res.json();
-            if (data.status === 'started') setStatus('running');
+            if (data.status === 'started' || data.status === 'already_running') {
+                setStatus('running');
+                if (data.status === 'already_running') {
+                    alert('Bot was already running. UI synced.');
+                }
+            } else {
+                alert(`Unexpected status: ${data.status}`);
+            }
         } catch (err) {
             console.error(err);
+            alert('Error starting bot: ' + String(err));
         }
     };
 
@@ -174,9 +212,9 @@ export default function Dashboard() {
                         {/* Budget & Risk Section */}
                         <div className="pt-4 border-t border-gray-700 space-y-3">
                             <h4 className="text-sm font-medium text-gray-300">Budget & Risk</h4>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Investment (USDT)</label>
+                                    <label className="block text-xs text-gray-500 mb-1">Invest (USDT)</label>
                                     <input
                                         type="number"
                                         value={investmentAmount}
@@ -192,6 +230,16 @@ export default function Dashboard() {
                                         onChange={(e) => setLeverage(e.target.value)}
                                         disabled={marketType === 'spot'}
                                         className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Max Positions</label>
+                                    <input
+                                        type="number"
+                                        value={maxOpenPositions}
+                                        onChange={(e) => setMaxOpenPositions(e.target.value)}
+                                        min="1"
+                                        className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
                                     />
                                 </div>
                             </div>
@@ -242,6 +290,22 @@ export default function Dashboard() {
                             Save Configuration (Persist Keys)
                         </button>
 
+                        {/* Paper Trading Toggle */}
+                        <div className="pt-4 border-t border-gray-700 flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-medium text-gray-300">Paper Trading Mode</h4>
+                                <p className="text-xs text-gray-500">Simulate trades without real funds</p>
+                            </div>
+                            <button
+                                onClick={() => setPaperTrading(!paperTrading)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${paperTrading ? 'bg-blue-600' : 'bg-gray-600'}`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${paperTrading ? 'translate-x-6' : 'translate-x-1'}`}
+                                />
+                            </button>
+                        </div>
+
                         {/* Action Buttons */}
                         <div className="flex space-x-4 pt-4">
                             <button
@@ -257,6 +321,32 @@ export default function Dashboard() {
                                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded-lg transition-colors"
                             >
                                 Stop Bot
+                            </button>
+                        </div>
+
+                        {/* Reset Data Button */}
+                        <div className="pt-4 border-t border-gray-700">
+                            <button
+                                onClick={async () => {
+                                    if (window.confirm('Are you sure you want to delete all trading history? API Keys will be preserved.')) {
+                                        try {
+                                            const res = await fetch('/api/reset', { method: 'POST' });
+                                            const data = await res.json();
+                                            if (data.status === 'success') {
+                                                alert('Data reset successfully');
+                                                // Optional: Trigger a refresh if needed, though components poll
+                                            } else {
+                                                alert('Failed to reset data: ' + data.message);
+                                            }
+                                        } catch (err) {
+                                            console.error(err);
+                                            alert('Error resetting data');
+                                        }
+                                    }
+                                }}
+                                className="w-full bg-red-900/50 hover:bg-red-900 text-red-200 text-xs py-2 rounded transition-colors border border-red-800"
+                            >
+                                ⚠️ Reset All Trading Data
                             </button>
                         </div>
                     </div>

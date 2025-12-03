@@ -19,6 +19,7 @@ class Trade(Base):
     profit_loss = Column(Float, nullable=True)
     profit_loss_pct = Column(Float, nullable=True)
     status = Column(String, default='OPEN')  # 'OPEN', 'CLOSED'
+    is_simulation = Column(Boolean, default=False)
     gemini_decision_id = Column(Integer, ForeignKey('gemini_decisions.id'), nullable=True)
     
     # Relationship

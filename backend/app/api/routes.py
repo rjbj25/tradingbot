@@ -1,11 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List, Optional
+from sqlalchemy.orm import Session
 from app.core.orchestrator import TradingOrchestrator
 from app.core.database import get_db
-from app.models.database import Configuration, SystemLog
-from sqlalchemy.orm import Session
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from typing import List, Optional
+from app.models.database import Configuration, SystemLog, Trade, GeminiDecision
 
 router = APIRouter()
 orchestrator = TradingOrchestrator()
@@ -19,6 +18,8 @@ class StartRequest(BaseModel):
     binance_api_key: str = None
     binance_secret_key: str = None
     gemini_api_key: str = None
+    paper_trading: bool = False
+    max_open_positions: int = 1
 
 class ConfigRequest(BaseModel):
     binance_api_key: Optional[str] = None
@@ -29,6 +30,8 @@ class ConfigRequest(BaseModel):
     timeframe: Optional[str] = None
     investment_amount: Optional[float] = None
     leverage: Optional[int] = None
+    paper_trading: Optional[bool] = None
+    max_open_positions: Optional[int] = None
 
 class LogResponse(BaseModel):
     id: int
@@ -66,10 +69,15 @@ async def start_trading(request: StartRequest, background_tasks: BackgroundTasks
             
     print(f"DEBUG: Final Keys - Binance: {binance_key}, Gemini: {gemini_key}")
 
+    # Validation: Ensure keys are present before starting
+    if not (binance_key and binance_secret and gemini_key):
+        raise HTTPException(status_code=400, detail="Missing API Keys. Please configure them in settings or provide them in the request.")
+
     background_tasks.add_task(orchestrator.start_trading_loop, 
                             request.symbol, request.market_type, request.timeframe,
                             request.investment_amount, request.leverage,
-                            binance_key, binance_secret, gemini_key)
+                            binance_key, binance_secret, gemini_key, request.paper_trading,
+                            request.max_open_positions)
     return {"status": "started", "config": request.dict(exclude={"binance_secret_key", "binance_api_key", "gemini_api_key"})}
 
 @router.get("/config")
@@ -119,8 +127,26 @@ def clear_logs(db: Session = Depends(get_db)):
 
 @router.post("/stop")
 async def stop_trading():
+    if not orchestrator.is_running:
+        return {"status": "not_running"}
     orchestrator.stop()
     return {"status": "stopped"}
+
+@router.post("/reset")
+async def reset_data(db: Session = Depends(get_db)):
+    """
+    Reset all trading data (Trades, Decisions, Logs) but keep Configuration (API Keys).
+    """
+    try:
+        # Delete all records from operational tables
+        db.query(Trade).delete()
+        db.query(GeminiDecision).delete()
+        db.query(SystemLog).delete()
+        db.commit()
+        return {"status": "success", "message": "Trading data reset successfully"}
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "message": str(e)}
 
 @router.get("/status")
 async def get_status():

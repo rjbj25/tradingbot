@@ -20,6 +20,10 @@ class TradeResponse(BaseModel):
     exit_time: Optional[datetime] = None
     profit_loss: Optional[float] = None
     status: str
+    confidence: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    is_simulation: bool = False
     
     class Config:
         from_attributes = True
@@ -30,6 +34,9 @@ class DecisionResponse(BaseModel):
     symbol: str
     action: str
     confidence: float
+    entry_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
     reasoning: str
     executed: bool
     
@@ -40,7 +47,18 @@ class DecisionResponse(BaseModel):
 def get_trades(limit: int = 50, db: Session = Depends(get_db)):
     """Get recent trades"""
     trades = db.query(Trade).order_by(Trade.entry_time.desc()).limit(limit).all()
-    return trades
+    
+    # Manually map fields from relationship
+    result = []
+    for t in trades:
+        trade_dict = t.__dict__
+        if t.gemini_decision:
+            trade_dict['confidence'] = t.gemini_decision.confidence
+            trade_dict['stop_loss'] = t.gemini_decision.stop_loss
+            trade_dict['take_profit'] = t.gemini_decision.take_profit
+        result.append(trade_dict)
+        
+    return result
 
 @router.get("/decisions", response_model=List[DecisionResponse])
 def get_decisions(limit: int = 50, db: Session = Depends(get_db)):

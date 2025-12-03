@@ -11,6 +11,10 @@ interface Trade {
     exit_time?: string;
     profit_loss?: number;
     status: string;
+    confidence?: number;
+    stop_loss?: number;
+    take_profit?: number;
+    is_simulation?: boolean;
 }
 
 interface Stats {
@@ -88,8 +92,12 @@ export default function TradeHistory() {
                             <tr>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Symbol</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase">Action</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase">Type</th>
+                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase">Conf.</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Amount</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Entry</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">SL</th>
+                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">TP</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">Exit</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase">P/L</th>
                                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase">Status</th>
@@ -98,7 +106,7 @@ export default function TradeHistory() {
                         <tbody className="divide-y divide-gray-700">
                             {trades.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                                    <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                                         No trades yet
                                     </td>
                                 </tr>
@@ -111,10 +119,28 @@ export default function TradeHistory() {
                                                 {trade.action}
                                             </span>
                                         </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${trade.is_simulation ? 'border-blue-500 text-blue-400' : 'border-purple-500 text-purple-400'}`}>
+                                                {trade.is_simulation ? 'PAPER' : 'REAL'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            {trade.confidence ? (
+                                                <span className={`text-xs font-bold ${trade.confidence > 0.8 ? 'text-green-400' : trade.confidence > 0.5 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                                    {(trade.confidence * 100).toFixed(0)}%
+                                                </span>
+                                            ) : '-'}
+                                        </td>
                                         <td className="px-6 py-4 text-sm text-right text-white">
                                             {trade.amount ? `$${trade.amount.toFixed(2)}` : '-'}
                                         </td>
                                         <td className="px-6 py-4 text-sm text-right text-white">${trade.entry_price.toFixed(2)}</td>
+                                        <td className="px-6 py-4 text-sm text-right text-red-300">
+                                            {trade.stop_loss ? `$${trade.stop_loss.toFixed(2)}` : '-'}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-right text-green-300">
+                                            {trade.take_profit ? `$${trade.take_profit.toFixed(2)}` : '-'}
+                                        </td>
                                         <td className="px-6 py-4 text-sm text-right text-white">
                                             {trade.exit_price ? `$${trade.exit_price.toFixed(2)}` : '-'}
                                         </td>
