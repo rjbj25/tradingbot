@@ -21,6 +21,7 @@ class StartRequest(BaseModel):
     gemini_api_key: str = None
     paper_trading: bool = False
     max_open_positions: int = 1
+    strategy: str = "IA Driven"
 
 class ConfigRequest(BaseModel):
     binance_api_key: Optional[str] = None
@@ -33,6 +34,7 @@ class ConfigRequest(BaseModel):
     leverage: Optional[int] = None
     paper_trading: Optional[bool] = None
     max_open_positions: Optional[int] = None
+    strategy: Optional[str] = None
 
 class LogResponse(BaseModel):
     id: int
@@ -78,7 +80,7 @@ async def start_trading(request: StartRequest, background_tasks: BackgroundTasks
                             request.symbol, request.market_type, request.timeframe,
                             request.investment_amount, request.leverage,
                             binance_key, binance_secret, gemini_key, request.paper_trading,
-                            request.max_open_positions)
+                            request.max_open_positions, request.strategy)
     return {"status": "started", "config": request.dict(exclude={"binance_secret_key", "binance_api_key", "gemini_api_key"})}
 
 @router.get("/config")

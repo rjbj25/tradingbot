@@ -157,7 +157,7 @@ class TradingOrchestrator:
                                investment_amount: float, leverage: int,
                                binance_api_key: str = None, binance_secret_key: str = None, 
                                gemini_api_key: str = None, paper_trading: bool = False,
-                               max_open_positions: int = 1):
+                               max_open_positions: int = 1, strategy: str = "IA Driven"):
         self.is_running = True
         self.symbol = symbol
         self.market_type = market_type
@@ -236,9 +236,9 @@ class TradingOrchestrator:
                         continue
                         
                     # 3. Analyze with Gemini (Only if slots available)
-                    self.log("INFO", f"Analyzing market with Gemini (Open: {open_trades_count}/{self.max_open_positions})...")
+                    self.log("INFO", f"Analyzing market with Gemini (Open: {open_trades_count}/{self.max_open_positions}) | Strategy: {strategy}...")
                     # Pass the entire data_dict to analyze_market
-                    analysis_json = await self.gemini.analyze_market(symbol, data_dict, timeframe)
+                    analysis_json = await self.gemini.analyze_market(symbol, data_dict, timeframe, strategy)
                     
                     if analysis_json:
                         # Clean json string if needed (Gemini might add markdown)

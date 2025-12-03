@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.models.database import Trade, GeminiDecision
+from app.models.database import Trade, GeminiDecision, Configuration
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -69,17 +69,40 @@ def get_decisions(limit: int = 50, db: Session = Depends(get_db)):
 @router.get("/stats")
 def get_stats(db: Session = Depends(get_db)):
     """Get trading statistics"""
+    # Calculate Stats
     total_trades = db.query(Trade).count()
-    open_trades = db.query(Trade).filter(Trade.status == 'OPEN').count()
+    
+    # Open Trades & Invested
+    open_trades_list = db.query(Trade).filter(Trade.status == 'OPEN').all()
+    open_trades = len(open_trades_list)
+    total_invested = sum(t.amount for t in open_trades_list) if open_trades_list else 0.0
+    
     closed_trades = db.query(Trade).filter(Trade.status == 'CLOSED').count()
     
-    # Calculate P/L for closed trades
+    # Calculate P/L and Win Rate
     closed_trades_list = db.query(Trade).filter(Trade.status == 'CLOSED', Trade.profit_loss.isnot(None)).all()
     total_pl = sum(t.profit_loss for t in closed_trades_list) if closed_trades_list else 0
+    
+    wins = sum(1 for t in closed_trades_list if t.profit_loss > 0)
+    win_rate_pct = (wins / closed_trades) * 100 if closed_trades > 0 else 0.0
+    
+    # Calculate Allocation Stats
+    config = db.query(Configuration).order_by(Configuration.id.desc()).first()
+    max_pos = config.max_open_positions if config else 1
+    inv_amount = config.investment_amount if config else 100.0
+    
+    total_allocation = float(max_pos) * float(inv_amount)
+    pending_allocation = total_allocation - total_invested
     
     return {
         "total_trades": total_trades,
         "open_trades": open_trades,
         "closed_trades": closed_trades,
-        "total_profit_loss": total_pl
+        "total_profit_loss": total_pl,
+        "total_invested": total_invested,
+        "win_rate_pct": win_rate_pct,
+        "trades_won": wins,
+        "trades_total_closed": closed_trades,
+        "total_allocation": total_allocation,
+        "pending_allocation": pending_allocation
     }
