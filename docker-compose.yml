@@ -13,6 +13,8 @@ services:
     environment:
       - DATABASE_URL=sqlite:///./data/trading_data.db
     restart: always
+    networks:
+      - tunnel-net
 
   frontend:
     build: ./frontend
@@ -26,7 +28,13 @@ services:
     depends_on:
       - backend
     restart: always
+    networks:
+      - tunnel-net
 
 volumes:
   trading_db:
   frontend_node_modules:
+
+networks:
+  tunnel-net:
+    external: true
