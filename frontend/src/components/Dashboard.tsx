@@ -78,6 +78,7 @@ export default function Dashboard() {
     const [binanceSecret, setBinanceSecret] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
     const [strategy, setStrategy] = useState("IA Driven");
+    const [checkInterval, setCheckInterval] = useState(60);
 
     const strategies = [
         "IA Driven",
@@ -92,6 +93,16 @@ export default function Dashboard() {
         "Elliott Wave Theory",
         "Wyckoff Method",
         "Smart Money Concepts (SMC)"
+    ];
+
+    const intervals = [
+        { label: '1 min', value: 60 },
+        { label: '5 min', value: 300 },
+        { label: '10 min', value: 600 },
+        { label: '20 min', value: 1200 },
+        { label: '60 min', value: 3600 },
+        { label: '120 min', value: 7200 },
+        { label: '260 min', value: 15600 },
     ];
 
     useEffect(() => {
@@ -123,6 +134,7 @@ export default function Dashboard() {
                 if (data.paper_trading !== undefined) setPaperTrading(data.paper_trading === 'True');
                 if (data.max_open_positions) setMaxOpenPositions(Number(data.max_open_positions));
                 if (data.strategy) setStrategy(data.strategy);
+                if (data.check_interval) setCheckInterval(Number(data.check_interval));
             }
         } catch (err) {
             console.error(err);
@@ -144,7 +156,8 @@ export default function Dashboard() {
                     leverage,
                     paper_trading: paperTrading,
                     max_open_positions: maxOpenPositions,
-                    strategy
+                    strategy,
+                    check_interval: checkInterval
                 })
             });
             alert("Configuration Saved!");
@@ -170,7 +183,8 @@ export default function Dashboard() {
                     gemini_api_key: geminiKey,
                     paper_trading: paperTrading,
                     max_open_positions: maxOpenPositions,
-                    strategy
+                    strategy,
+                    check_interval: checkInterval
                 })
             });
             const data = await res.json();
@@ -533,6 +547,23 @@ export default function Dashboard() {
                                             </div>
                                         </div>
 
+                                        {/* Check Interval */}
+                                        <div className="space-y-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+                                            <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Scan Interval</h3>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-400 mb-1">Check Every</label>
+                                                <select
+                                                    value={checkInterval}
+                                                    onChange={(e) => setCheckInterval(Number(e.target.value))}
+                                                    className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                                                >
+                                                    {intervals.map(i => (
+                                                        <option key={i.value} value={i.value}>{i.label}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+
                                         {/* Market Settings */}
                                         <div className="space-y-3 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
                                             <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">Market</h3>
@@ -681,200 +712,181 @@ export default function Dashboard() {
                 ) : (
                     <div className="space-y-6">
                         {/* Backtest Controls */}
-                        <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-                            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2 text-gray-200">
-                                <Settings className="text-blue-400" /> Backtest Configuration
-                            </h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="space-y-4">
-                                    <Input label="Symbol" value={symbol} onChange={(e) => setSymbol(e.target.value)} />
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">Timeframe</label>
-                                        <select
-                                            value={timeframe}
-                                            onChange={(e) => setTimeframe(e.target.value)}
-                                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                        >
-                                            {['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => (
-                                                <option key={tf} value={tf}>{tf}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="space-y-4">
-                                    <Input label="Initial Capital" type="number" value={investment * 10} onChange={(e) => setInvestment(Number(e.target.value) / 10)} />
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-400 mb-1">AI Model</label>
-                                        <select
-                                            value={model}
-                                            onChange={(e) => setModel(e.target.value)}
-                                            className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                                        >
-                                            {availableModels.map(m => (
-                                                <option key={m} value={m}>{m}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col justify-end gap-3">
-                                    <button
-                                        onClick={runBacktest}
-                                        disabled={backtestStatus === 'running'}
-                                        className={`w-full py-3 rounded-lg font-bold text-white transition-all ${backtestStatus === 'running' ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-blue-500/20'}`}
-                                    >
-                                        {backtestStatus === 'running' ? 'Running Simulation...' : 'Run Single Simulation'}
-                                    </button>
-                                    <button
-                                        onClick={runMultiBacktest}
-                                        disabled={isMultiRunning}
-                                        className={`w-full py-3 rounded-lg font-bold text-white transition-all ${isMultiRunning ? 'bg-gray-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-lg hover:shadow-purple-500/20'}`}
-                                    >
-                                        {isMultiRunning ? 'Running All Timeframes...' : 'Run All Timeframes'}
-                                    </button>
-                                </div>
-                            </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-400">Model</label>
+                            <select
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                className="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                            >
+                                {availableModels.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
                         </div>
+                        <div className="flex flex-col justify-end gap-3">
+                            <button
+                                onClick={runBacktest}
+                                disabled={backtestStatus === 'running'}
+                                className={`w-full py-3 rounded-lg font-bold text-white transition-all ${backtestStatus === 'running' ? 'bg-gray-600 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-blue-500/20'}`}
+                            >
+                                {backtestStatus === 'running' ? 'Running Simulation...' : 'Run Single Simulation'}
+                            </button>
+                            <button
+                                onClick={runMultiBacktest}
+                                disabled={isMultiRunning}
+                                className={`w-full py-3 rounded-lg font-bold text-white transition-all ${isMultiRunning ? 'bg-gray-600 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700 shadow-lg hover:shadow-purple-500/20'}`}
+                            >
+                                {isMultiRunning ? 'Running All Timeframes...' : 'Run All Timeframes'}
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-                        {/* Single Backtest Results */}
-                        {backtestStatus !== 'idle' && (
-                            <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
-                                <h3 className="text-lg font-semibold mb-4 text-gray-200">Single Simulation Results ({timeframe})</h3>
+                {/* Single Backtest Results */}
+                {
+                    backtestStatus !== 'idle' && (
+                        <div className="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700">
+                            <h3 className="text-lg font-semibold mb-4 text-gray-200">Single Simulation Results ({timeframe})</h3>
 
-                                {/* Simulation Logs Panel */}
-                                <div className="mb-6 bg-black/30 rounded-lg border border-gray-700 overflow-hidden">
-                                    <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
-                                        <span className="text-sm font-medium text-gray-300">Simulation Logs</span>
-                                        <span className="text-xs text-gray-500">{backtestLogs.length} events</span>
-                                    </div>
-                                    <div className="h-48 overflow-y-auto p-4 font-mono text-xs space-y-1">
-                                        {backtestLogs.length === 0 ? (
-                                            <div className="text-gray-500 italic text-center py-4">Waiting for simulation logs...</div>
-                                        ) : (
-                                            backtestLogs.map((log, i) => (
-                                                <div key={i} className="text-gray-300 border-b border-gray-800/50 pb-1 last:border-0">
-                                                    <span className="text-blue-400 mr-2">[{new Date().toLocaleTimeString()}]</span>
-                                                    {log}
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-
-                                {backtestResults && (
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div className="bg-gray-700/30 p-4 rounded-lg">
-                                            <p className="text-gray-400 text-sm">Total Return</p>
-                                            <p className={`text-xl font-bold ${backtestResults.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                {backtestResults.total_return?.toFixed(2)}%
-                                            </p>
-                                        </div>
-                                        <div className="bg-gray-700/30 p-4 rounded-lg">
-                                            <p className="text-gray-400 text-sm">Win Rate</p>
-                                            <p className="text-xl font-bold text-blue-400">{backtestResults.win_rate?.toFixed(1)}%</p>
-                                        </div>
-                                        <div className="bg-gray-700/30 p-4 rounded-lg">
-                                            <p className="text-gray-400 text-sm">Max Drawdown</p>
-                                            <p className="text-xl font-bold text-red-400">{backtestResults.max_drawdown?.toFixed(2)}%</p>
-                                        </div>
-                                        <div className="bg-gray-700/30 p-4 rounded-lg">
-                                            <p className="text-gray-400 text-sm">Total Trades</p>
-                                            <p className="text-xl font-bold text-white">{backtestResults.total_trades}</p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Multi-Timeframe Global Logs Panel */}
-                        {Object.keys(multiBacktestStatus).length > 0 && (
+                            {/* Simulation Logs Panel */}
                             <div className="mb-6 bg-black/30 rounded-lg border border-gray-700 overflow-hidden">
                                 <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
-                                    <span className="text-sm font-medium text-gray-300">Multi-Timeframe Simulation Logs (Live)</span>
-                                    <span className="text-xs text-gray-500">Latest Updates</span>
+                                    <span className="text-sm font-medium text-gray-300">Simulation Logs</span>
+                                    <span className="text-xs text-gray-500">{backtestLogs.length} events</span>
                                 </div>
                                 <div className="h-48 overflow-y-auto p-4 font-mono text-xs space-y-1">
-                                    {globalMultiLogs.length === 0 ? (
+                                    {backtestLogs.length === 0 ? (
                                         <div className="text-gray-500 italic text-center py-4">Waiting for simulation logs...</div>
                                     ) : (
-                                        globalMultiLogs.map((log, i) => (
+                                        backtestLogs.map((log, i) => (
                                             <div key={i} className="text-gray-300 border-b border-gray-800/50 pb-1 last:border-0">
-                                                <span className="text-purple-400 mr-2">[{new Date().toLocaleTimeString()}]</span>
+                                                <span className="text-blue-400 mr-2">[{new Date().toLocaleTimeString()}]</span>
                                                 {log}
                                             </div>
                                         ))
                                     )}
                                 </div>
                             </div>
-                        )}
 
-                        {/* Multi-Timeframe Results Cards */}
-                        {Object.keys(multiBacktestStatus).length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => (
-                                    <div key={tf} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h4 className="font-bold text-white">{tf} Timeframe</h4>
-                                            <span className={`text-xs px-2 py-1 rounded-full ${multiBacktestStatus[tf] === 'completed' ? 'bg-green-900 text-green-300' :
-                                                multiBacktestStatus[tf] === 'running' ? 'bg-blue-900 text-blue-300 animate-pulse' :
-                                                    multiBacktestStatus[tf] === 'failed' ? 'bg-red-900 text-red-300' :
-                                                        'bg-gray-700 text-gray-400'
-                                                }`}>
-                                                {multiBacktestStatus[tf] || 'Pending'}
-                                            </span>
-                                        </div>
-
-                                        {/* Toggle Logs Button */}
-                                        <button
-                                            onClick={() => toggleLogs(tf)}
-                                            className="w-full mb-3 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 py-1 rounded transition-colors flex justify-center items-center gap-2"
-                                        >
-                                            {expandedLogs[tf] ? 'Hide Logs' : 'Show Logs'}
-                                            {multiBacktestLogs[tf] && <span className="bg-gray-900 px-1.5 rounded-full text-[10px]">{multiBacktestLogs[tf].length}</span>}
-                                        </button>
-
-                                        {/* Collapsible Logs */}
-                                        {expandedLogs[tf] && (
-                                            <div className="mb-3 h-32 overflow-y-auto bg-black/30 rounded p-2 text-[10px] font-mono border border-gray-700/50">
-                                                {multiBacktestLogs[tf]?.length > 0 ? (
-                                                    multiBacktestLogs[tf].map((log, i) => (
-                                                        <div key={i} className="text-gray-400 border-b border-gray-800/30 pb-0.5 mb-0.5 last:border-0">
-                                                            {log}
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <span className="text-gray-600 italic">No logs yet...</span>
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {multiBacktestResults[tf] ? (
-                                            <div className="space-y-2 text-sm">
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-400">Return</span>
-                                                    <span className={multiBacktestResults[tf].total_return >= 0 ? 'text-green-400' : 'text-red-400'}>
-                                                        {multiBacktestResults[tf].total_return?.toFixed(2)}%
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-400">Win Rate</span>
-                                                    <span className="text-blue-400">{multiBacktestResults[tf].win_rate?.toFixed(1)}%</span>
-                                                </div>
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-400">Trades</span>
-                                                    <span className="text-white">{multiBacktestResults[tf].total_trades}</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="h-20 flex items-center justify-center text-gray-600 text-sm italic">
-                                                {multiBacktestStatus[tf] === 'running' ? 'Simulating...' : 'Waiting...'}
-                                            </div>
-                                        )}
+                            {backtestResults && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="bg-gray-700/30 p-4 rounded-lg">
+                                        <p className="text-gray-400 text-sm">Total Return</p>
+                                        <p className={`text-xl font-bold ${backtestResults.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                            {backtestResults.total_return?.toFixed(2)}%
+                                        </p>
                                     </div>
-                                ))}
+                                    <div className="bg-gray-700/30 p-4 rounded-lg">
+                                        <p className="text-gray-400 text-sm">Win Rate</p>
+                                        <p className="text-xl font-bold text-blue-400">{backtestResults.win_rate?.toFixed(1)}%</p>
+                                    </div>
+                                    <div className="bg-gray-700/30 p-4 rounded-lg">
+                                        <p className="text-gray-400 text-sm">Max Drawdown</p>
+                                        <p className="text-xl font-bold text-red-400">{backtestResults.max_drawdown?.toFixed(2)}%</p>
+                                    </div>
+                                    <div className="bg-gray-700/30 p-4 rounded-lg">
+                                        <p className="text-gray-400 text-sm">Total Trades</p>
+                                        <p className="text-xl font-bold text-white">{backtestResults.total_trades}</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )
+                }
+
+                {/* Multi-Timeframe Global Logs Panel */}
+                {
+                    Object.keys(multiBacktestStatus).length > 0 && (
+                        <div className="mb-6 bg-black/30 rounded-lg border border-gray-700 overflow-hidden">
+                            <div className="bg-gray-900/50 px-4 py-2 border-b border-gray-700 flex justify-between items-center">
+                                <span className="text-sm font-medium text-gray-300">Multi-Timeframe Simulation Logs (Live)</span>
+                                <span className="text-xs text-gray-500">Latest Updates</span>
                             </div>
-                        )}
-                    </div>
-                )}
+                            <div className="h-48 overflow-y-auto p-4 font-mono text-xs space-y-1">
+                                {globalMultiLogs.length === 0 ? (
+                                    <div className="text-gray-500 italic text-center py-4">Waiting for simulation logs...</div>
+                                ) : (
+                                    globalMultiLogs.map((log, i) => (
+                                        <div key={i} className="text-gray-300 border-b border-gray-800/50 pb-1 last:border-0">
+                                            <span className="text-purple-400 mr-2">[{new Date().toLocaleTimeString()}]</span>
+                                            {log}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )
+                }
+
+                {/* Multi-Timeframe Results Cards */}
+                {
+                    Object.keys(multiBacktestStatus).length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {['1m', '5m', '15m', '1h', '4h', '1d'].map(tf => (
+                                <div key={tf} className="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <h4 className="font-bold text-white">{tf} Timeframe</h4>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${multiBacktestStatus[tf] === 'completed' ? 'bg-green-900 text-green-300' :
+                                            multiBacktestStatus[tf] === 'running' ? 'bg-blue-900 text-blue-300 animate-pulse' :
+                                                multiBacktestStatus[tf] === 'failed' ? 'bg-red-900 text-red-300' :
+                                                    'bg-gray-700 text-gray-400'
+                                            }`}>
+                                            {multiBacktestStatus[tf] || 'Pending'}
+                                        </span>
+                                    </div>
+
+                                    {/* Toggle Logs Button */}
+                                    <button
+                                        onClick={() => toggleLogs(tf)}
+                                        className="w-full mb-3 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 py-1 rounded transition-colors flex justify-center items-center gap-2"
+                                    >
+                                        {expandedLogs[tf] ? 'Hide Logs' : 'Show Logs'}
+                                        {multiBacktestLogs[tf] && <span className="bg-gray-900 px-1.5 rounded-full text-[10px]">{multiBacktestLogs[tf].length}</span>}
+                                    </button>
+
+                                    {/* Collapsible Logs */}
+                                    {expandedLogs[tf] && (
+                                        <div className="mb-3 h-32 overflow-y-auto bg-black/30 rounded p-2 text-[10px] font-mono border border-gray-700/50">
+                                            {multiBacktestLogs[tf]?.length > 0 ? (
+                                                multiBacktestLogs[tf].map((log, i) => (
+                                                    <div key={i} className="text-gray-400 border-b border-gray-800/30 pb-0.5 mb-0.5 last:border-0">
+                                                        {log}
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <span className="text-gray-600 italic">No logs yet...</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {multiBacktestResults[tf] ? (
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">Return</span>
+                                                <span className={multiBacktestResults[tf].total_return >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                                    {multiBacktestResults[tf].total_return?.toFixed(2)}%
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">Win Rate</span>
+                                                <span className="text-blue-400">{multiBacktestResults[tf].win_rate?.toFixed(1)}%</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">Trades</span>
+                                                <span className="text-white">{multiBacktestResults[tf].total_trades}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="h-20 flex items-center justify-center text-gray-600 text-sm italic">
+                                            {multiBacktestStatus[tf] === 'running' ? 'Simulating...' : 'Waiting...'}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )
+                }
             </div>
         </div>
     );

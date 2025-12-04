@@ -7,37 +7,13 @@ from app.agents.binance_agent import BinanceAgent
 from app.agents.gemini_agent import GeminiAgent
 from app.core.database import get_db
 from app.models.database import Configuration, SystemLog, Trade, GeminiDecision
+from app.core.backtest_engine import BacktestEngine
+import uuid
 
 router = APIRouter()
+
+# Global Orchestrator Instance
 orchestrator = TradingOrchestrator()
-
-class StartRequest(BaseModel):
-    symbol: str = "BTC/USDT"
-    market_type: str = "future"
-    timeframe: str = "1h"
-    investment_amount: float = 100.0
-    leverage: int = 1
-    binance_api_key: str = None
-    binance_secret_key: str = None
-    gemini_api_key: str = None
-    paper_trading: bool = False
-    max_open_positions: int = 1
-    strategy: str = "IA Driven"
-    model: str = "gemini-2.5-flash"
-
-class ConfigRequest(BaseModel):
-    binance_api_key: Optional[str] = None
-    binance_secret_key: Optional[str] = None
-    gemini_api_key: Optional[str] = None
-    symbol: Optional[str] = None
-    market_type: Optional[str] = None
-    timeframe: Optional[str] = None
-    investment_amount: Optional[float] = None
-    leverage: Optional[int] = None
-    paper_trading: Optional[bool] = None
-    max_open_positions: Optional[int] = None
-    strategy: Optional[str] = None
-    model: Optional[str] = None
 
 class LogResponse(BaseModel):
     id: int
@@ -48,6 +24,41 @@ class LogResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class StartRequest(BaseModel):
+    symbol: str
+    market_type: str = "future"
+    timeframe: str
+    investment_amount: float
+    leverage: int
+    binance_api_key: Optional[str] = None
+    binance_secret_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    paper_trading: bool = True
+    max_open_positions: int = 1
+    strategy: str = "IA Driven"
+    check_interval: int = 60
+
+class ConfigRequest(BaseModel):
+    binance_api_key: Optional[str] = None
+    binance_secret_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    symbol: Optional[str] = None
+    timeframe: Optional[str] = None
+    investment_amount: Optional[float] = None
+    leverage: Optional[int] = None
+    paper_trading: Optional[bool] = None
+    max_open_positions: Optional[int] = None
+    strategy: Optional[str] = None
+    check_interval: Optional[int] = None
+
+class BacktestRequest(BaseModel):
+    symbol: str = "BTC/USDT"
+    timeframe: str = "1h"
+    strategy: str = "IA Driven"
+    model: str = "gemini-2.5-flash"
+    days: int = 7
+    initial_capital: float = 1000.0
 
 @router.get("/models")
 def get_models(db: Session = Depends(get_db)):
@@ -84,25 +95,30 @@ async def start_trading(request: StartRequest, background_tasks: BackgroundTasks
         if not gemini_key:
             gemini_key = config_map.get('gemini_api_key')
             
-    print(f"DEBUG: Final Keys - Binance: {binance_key}, Gemini: {gemini_key}")
+    # Start the orchestrator
+    background_tasks.add_task(
+        orchestrator.start_trading_loop,
+        symbol=request.symbol,
+        market_type=request.market_type,
+        timeframe=request.timeframe,
+        investment_amount=request.investment_amount,
+        leverage=request.leverage,
+        binance_api_key=binance_key,
+        binance_secret_key=binance_secret,
+        gemini_api_key=gemini_key,
+        paper_trading=request.paper_trading,
+        max_open_positions=request.max_open_positions,
+        strategy=request.strategy,
+        check_interval=request.check_interval
+    )
 
-    # Validation: Ensure keys are present before starting
-    if not (binance_key and binance_secret and gemini_key):
-        raise HTTPException(status_code=400, detail="Missing API Keys. Please configure them in settings or provide them in the request.")
-
-    background_tasks.add_task(orchestrator.start_trading_loop, 
-                            request.symbol, request.market_type, request.timeframe,
-                            request.investment_amount, request.leverage,
-                            binance_key, binance_secret, gemini_key, request.paper_trading,
-                            request.max_open_positions, request.strategy, request.model)
-    return {"status": "started", "config": request.dict(exclude={"binance_secret_key", "binance_api_key", "gemini_api_key"})}
+    return {"status": "started"}
 
 @router.get("/config")
 def get_config(db: Session = Depends(get_db)):
-    """Get saved configuration"""
+    """Get current configuration"""
     configs = db.query(Configuration).all()
-    config_dict = {c.config_key: c.config_value for c in configs}
-    return config_dict
+    return {c.config_key: c.config_value for c in configs}
 
 @router.post("/config")
 def save_config(config: ConfigRequest, db: Session = Depends(get_db)):
@@ -117,19 +133,11 @@ def save_config(config: ConfigRequest, db: Session = Depends(get_db)):
             else:
                 db_config = Configuration(config_key=key, config_value=str(value))
                 db.add(db_config)
-from app.core.backtest_engine import BacktestEngine
-import uuid
+    db.commit()
+    return {"status": "saved"}
 
 # In-memory storage for backtest results (for simplicity)
 backtest_results = {}
-
-class BacktestRequest(BaseModel):
-    symbol: str = "BTC/USDT"
-    timeframe: str = "1h"
-    strategy: str = "IA Driven"
-    model: str = "gemini-2.5-flash"
-    days: int = 7
-    initial_capital: float = 1000.0
 
 async def run_backtest_task(backtest_id: str, request: BacktestRequest, binance_key: str, gemini_key: str):
     try:
@@ -171,21 +179,20 @@ async def run_backtest_task(backtest_id: str, request: BacktestRequest, binance_
     except Exception as e:
         import traceback
         traceback.print_exc()
-        print(f"Backtest failed: {e}")
         backtest_results[backtest_id]["status"] = "failed"
         backtest_results[backtest_id]["error"] = str(e)
 
 @router.post("/backtest")
 async def start_backtest(request: BacktestRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    # Get Keys
+    # Get API keys
     configs = db.query(Configuration).all()
     config_map = {c.config_key: c.config_value for c in configs}
     binance_key = config_map.get('binance_api_key')
     gemini_key = config_map.get('gemini_api_key')
     
-    if not (binance_key and gemini_key):
-        raise HTTPException(status_code=400, detail="API Keys not configured.")
-        
+    if not binance_key or not gemini_key:
+        raise HTTPException(status_code=400, detail="API Keys not found in configuration")
+
     backtest_id = str(uuid.uuid4())
     background_tasks.add_task(run_backtest_task, backtest_id, request, binance_key, gemini_key)
     

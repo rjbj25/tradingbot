@@ -158,7 +158,7 @@ class TradingOrchestrator:
                                binance_api_key: str = None, binance_secret_key: str = None, 
                                gemini_api_key: str = None, paper_trading: bool = False,
                                max_open_positions: int = 1, strategy: str = "IA Driven",
-                               model: str = "gemini-2.5-flash"):
+                               check_interval: int = 60, model: str = "gemini-2.5-flash"):
         self.is_running = True
         self.symbol = symbol
         self.market_type = market_type
@@ -166,6 +166,7 @@ class TradingOrchestrator:
         self.investment_amount = investment_amount
         self.leverage = leverage
         self.max_open_positions = max_open_positions
+        self.check_interval = check_interval
         
         mode_str = "PAPER TRADING" if paper_trading else "REAL TRADING"
         self.log("INFO", f"Starting {mode_str} loop for {symbol} ({market_type}, {timeframe})", {
@@ -174,6 +175,7 @@ class TradingOrchestrator:
             "paper_trading": paper_trading,
             "max_open_positions": max_open_positions,
             "strategy": strategy,
+            "check_interval": check_interval,
             "model": model
         })
         
@@ -235,7 +237,7 @@ class TradingOrchestrator:
                     
                     if open_trades_count >= self.max_open_positions:
                         self.log("INFO", f"Max positions reached ({open_trades_count}/{self.max_open_positions}). Skipping new analysis.")
-                        await asyncio.sleep(60)
+                        await asyncio.sleep(self.check_interval)
                         continue
                         
                     # 3. Analyze with Gemini (Only if slots available)
@@ -348,7 +350,7 @@ class TradingOrchestrator:
                 except Exception as e:
                     self.log("ERROR", f"Error in trading loop: {e}")
                 
-                await asyncio.sleep(60)
+                await asyncio.sleep(self.check_interval)
         finally:
             self.is_running = False
             self.log("INFO", "Trading loop stopped.")
